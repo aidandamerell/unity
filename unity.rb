@@ -60,6 +60,35 @@ class Protocol
   def self.pry
     binding.pry
   end
+
+  # Load in the actions you've defined
+  def self.load
+    YAML.load_file('tools.yml').each do |action|
+      proto = Protocol.create_or_find(name: action[:protocol])
+
+      new_action = Action.new(name: action[:name], protocol: proto)
+      proto.actions << new_action
+
+      new_action.techniques = action[:techniques].map do |tech|
+        Technique
+        .new(
+          name: tech[:name],
+          command: tech[:command],
+          priority: tech[:priority],
+          action: new_action,
+          defaults: tech[:defaults],
+          iterate_mode: tech[:iterate_mode],
+          iterate_over: tech[:iterate_over],
+          iterate_replacer: tech[:iterate_replacer],
+          )
+      end.sort_by(&:priority).reverse
+    end
+  end
+
+  def self.reload!
+    @@all_protocols = {}
+    Protocol.load
+  end
 end
 
 
@@ -162,28 +191,6 @@ class Technique
   def self.current=(value)
     @@current = value
   end
-end
-
-# Load in the actions you've defined
-YAML.load_file('tools.yml').each do |action|
-  proto = Protocol.create_or_find(name: action[:protocol])
-
-  new_action = Action.new(name: action[:name], protocol: proto)
-  proto.actions << new_action
-
-  new_action.techniques = action[:techniques].map do |tech|
-    Technique
-    .new(
-      name: tech[:name],
-      command: tech[:command],
-      priority: tech[:priority],
-      action: new_action,
-      defaults: tech[:defaults],
-      iterate_mode: tech[:iterate_mode],
-      iterate_over: tech[:iterate_over],
-      iterate_replacer: tech[:iterate_replacer],
-      )
-  end.sort_by(&:priority).reverse
 end
 
 def prompt_details
@@ -291,11 +298,15 @@ def parse_input(input)
     exit
   when 'pry'
     Protocol.pry
+  when 'reload'
+    Protocol.reload!
+    puts "Reloading data".blue
   else
     puts 'Unknown command, type help?'.yellow
   end
 end
 
+Protocol.load
 while true
   parse_input(@prompt.ask("#{prompt_details}>"))
 end

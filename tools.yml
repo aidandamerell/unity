@@ -84,3 +84,14 @@
       :iterate_replacer: ip
       :defaults:
         :file: files/SecLists/Passwords/Default-Credentials/mysql-betterdefaultpasslist.txt
+- :protocol: POSTGRESQL
+  :name: Check for weak credentials
+  :techniques:
+    - :name: hydra
+      :command:  hydra -C %{file} %{ip} postgres
+      :priority: 5
+      :iterate_mode: iterate #alternative is multi_pass. Iterate will run the same command over the collection. multi_pass will pass the data comma-seperated
+      :iterate_over: range
+      :iterate_replacer: ip
+      :defaults:
+        :file: files/SecLists/Passwords/Default-Credentials/postgres-betterdefaultpasslist.txt
