@@ -18,6 +18,7 @@ INPUT_VARS = {
   # command: nil,
   # in_file: nil,
   # out_file: nil,
+  # range: nil,
 }
 
 class Protocol
@@ -86,10 +87,12 @@ end
 
 
 class Technique
+  MAX_STARS = 5
+
   @@current = nil
 
   attr_accessor :name, :priority, :command, :required_params, :defaults
-  attr_reader :action, :priority_stars
+  attr_reader :action, :priority_stars, :iterate_mode, :iterate_over, :iterate_replacer
 
   def initialize(**kargs)
     @name = kargs[:name]
@@ -97,13 +100,17 @@ class Technique
     @command = kargs[:command]
     @required_params = kargs[:required_params]
     @defaults = kargs[:defaults]
+    @iterate_over = kargs[:iterate_over]
+    @iterate_mode = kargs[:iterate_mode]
+    @iterate_replacer = kargs[:iterate_replacer]
     @action = kargs[:action]
   end
 
   def priority_stars
     return '-' unless priority
 
-    "*" * priority
+    left = MAX_STARS - priority
+    "*".green * priority + '-'.red * left
   end
 
   # Hash#merge will use override the FIRST hashes attributes
@@ -115,15 +122,32 @@ class Technique
     @@current.defaults.merge INPUT_VARS
   end
 
-  def generate!
-    @@current.command % get_vars
+  def generate!(override_param = {})
+    @@current.command % get_vars.merge(override_param)
   rescue KeyError => error
     warn("Missing Variable: #{error.message}")
   end
 
   def run!
+    if iterate_mode && get_vars[iterate_over.to_sym]
+      case iterate_mode
+      when 'iterate'
+        get_vars[iterate_over.to_sym].split(',').each do |item|
+          cmd = generate!(Hash[iterate_replacer.to_sym, item])
+          run_command(cmd)
+        end
+      when 'multi_pass'
+        item = get_vars[iterate_over.to_sym].join(', ')
+        cmd = generate!(Hash[iterate_replacer.to_sym, item])
+        run_command(cmd)
+      end
+    else
+      run_command(generate!)
+    end
+  end
+
+  def run_command(command)
     cmd = TTY::Command.new(printer: :quiet)
-    command  = generate!
 
     cmd.run(command)
   rescue TTY::Command::TimeoutExceeded, TTY::Command::ExitError, Errno::ENOENT => e
@@ -149,7 +173,16 @@ YAML.load_file('tools.yml').each do |action|
 
   new_action.techniques = action[:techniques].map do |tech|
     Technique
-    .new(name: tech[:name], command: tech[:command], priority: tech[:priority], action: new_action, defaults: tech[:defaults])
+    .new(
+      name: tech[:name],
+      command: tech[:command],
+      priority: tech[:priority],
+      action: new_action,
+      defaults: tech[:defaults],
+      iterate_mode: tech[:iterate_mode],
+      iterate_over: tech[:iterate_over],
+      iterate_replacer: tech[:iterate_replacer],
+      )
   end.sort_by(&:priority).reverse
 end
 
@@ -158,7 +191,7 @@ def prompt_details
 end
 
 def var_or_select(prompt, prompt_name, value, action_proc, select_proc)
-  if value
+  if value && !value.empty?
     action_proc.call(value)
   else
     @prompt.select(prompt_name, filter: true) do |menu|
@@ -172,6 +205,7 @@ def warn(message)
 end
 
 def set_var(name, value)
+  value = value.join('')
   case name
   when 'protocol', 'proto'
     Protocol.current = var_or_select(
@@ -244,7 +278,7 @@ def parse_input(input)
   when 'show'
     show(split[1])
   when 'set'
-    set_var(split[1], split[2])
+    set_var(split[1], split[2..-1])
   when 'run'
     return warn('No Technique Set') if !Technique.current
 

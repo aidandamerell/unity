@@ -1,3 +1,4 @@
+# These are predominently made to work natively in Kali, so some paths/command might need tweaking for other OS's
 ---
 - :protocol: SMB
   :name: Find Open Shares
@@ -44,7 +45,42 @@
   :name: Subdomain Enumeration
   :techniques:
     - :name: dnsrecon
-      :command: dnsrecon.py -D %{in_file} -d %{domain} -t brt -c %{out_file}
+      :command: dnsrecon -D %{in_file} -d %{domain} -t brt -c %{out_file}
       :defaults:
         :in_file: /usr/share/dnsrecon/namelist.txt
         :out_file: ./dnsrecon_brute.csv
+- :protocol: HTTP
+  :name: Directory Brute-Force
+  :techniques:
+    - :name: dirsearch
+      :command: dirsearch -e all -u %{url}
+    - :name: dirb
+      :command: dirb %{url}
+- :protocol: MSSQL
+  :name: Check for weak credentials
+  :techniques:
+    - :name: hydra
+      :command:  hydra -C %{file} %{ip} mssql
+      :priority: 5
+      :iterate_mode: iterate #alternative is multi_pass. Iterate will run the same command over the collection. multi_pass will pass the data comma-seperated
+      :iterate_over: range
+      :iterate_replacer: ip
+      :defaults:
+        :file: files/SecLists/Passwords/Default-Credentials/mssql-betterdefaultpasslist.txt
+- :protocol: MSSQL
+  :name: Connect to MSSQL
+  :techniques:
+    - :name: mssqlclient (impacket)
+      :command: impacket-mssqlclient %{username}:%{password}@%{ip}
+      :priority: 4
+- :protocol: MYSQL
+  :name: Check for weak credentials
+  :techniques:
+    - :name: hydra
+      :command:  hydra -C %{file} %{ip} mysql
+      :priority: 5
+      :iterate_mode: iterate #alternative is multi_pass. Iterate will run the same command over the collection. multi_pass will pass the data comma-seperated
+      :iterate_over: range
+      :iterate_replacer: ip
+      :defaults:
+        :file: files/SecLists/Passwords/Default-Credentials/mysql-betterdefaultpasslist.txt
