@@ -1,0 +1,50 @@
+---
+- :protocol: SMB
+  :name: Find Open Shares
+  :techniques:
+    - :name: nmap
+      :command: nmap -Pn -vvv -n -p445 --script=smb-enum-shares %{ip}
+      :priority: 4
+    - :name: smbclient
+      :command: smbclient -N -L \\\\%{ip}
+      :priority: 5
+    - :name: crackmapexec
+      :command: crackmapexec smb -u '' -p '' %{ip} --enum-shares
+      :priority: 3
+- :protocol: SMB
+  :name: Check for MS17-010
+  :techniques:
+    - :name: nmap
+      :command: nmap -Pn -vvv -n -p445 --script=smb-vuln-ms17-010 %{ip}
+- :protocol: SMB
+  :name: Check for Blank Administrator Password
+  :techniques:
+    - :name: crackmapexec
+      :command: crackmapexec smb -u Administrator -p '' --local-auth %{ip}
+    - :name: hydra
+      :command: hydra -l Administrator -p '' smb://%{ip}
+- :protocol: UDP
+  :name: Find UDP Services
+  :techniques:
+    - :name: udp-proto-scanner
+      :command: udp-proto-scanner %{ip}
+- :protocol: TFTP
+  :name: Brute-Force TFTP Files
+  :techniques:
+    - :name: nmap
+      :command: sudo nmap -sU -p 69 -Pn -n -vvv --script=tftp-enum %{ip}
+- :protocol: DNS
+  :name: DNS Zone Transfer
+  :techniques:
+    - :name: dig
+      :command: dig axfr @%{ip} %{domain}
+    - :name: dnsrecon
+      :command: dnsrecon -t axfr -d %{domain}
+- :protocol: DNS
+  :name: Subdomain Enumeration
+  :techniques:
+    - :name: dnsrecon
+      :command: dnsrecon.py -D %{in_file} -d %{domain} -t brt -c %{out_file}
+      :defaults:
+        :in_file: /usr/share/dnsrecon/namelist.txt
+        :out_file: ./dnsrecon_brute.csv
