@@ -38,7 +38,7 @@ class Protocol
 
     return existing if existing
 
-    self.new(kargs)
+    self.new(**kargs)
   end
 
   def self.all
