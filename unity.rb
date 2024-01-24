@@ -107,7 +107,7 @@ class Action
   def self.current
     @@current
   end
-  
+
   def self.current=(value)
     @@current = value
     Technique.current = nil
@@ -152,26 +152,29 @@ class Technique
   end
 
   def generate!(override_param = {})
-    @@current.command % get_vars.merge(override_param)
+    if iterate_mode && get_vars[iterate_over.to_sym]
+      case iterate_mode
+      when 'iterate'
+        get_vars[iterate_over.to_sym].split(',').map do |item|
+          command % get_vars.merge(Hash[iterate_replacer.to_sym, item])
+        end
+      when 'multi_pass'
+        item = get_vars[iterate_over.to_sym].split(',').join(', ')
+        command % get_vars.merge(Hash[iterate_replacer.to_sym, item])
+      end
+    else
+      command % get_vars.merge(override_param)
+    end
   rescue KeyError => error
     warn("Missing Variable: #{error.message}")
   end
 
   def run!
-    if iterate_mode && get_vars[iterate_over.to_sym]
-      case iterate_mode
-      when 'iterate'
-        get_vars[iterate_over.to_sym].split(',').each do |item|
-          cmd = generate!(Hash[iterate_replacer.to_sym, item])
-          run_command(cmd)
-        end
-      when 'multi_pass'
-        item = get_vars[iterate_over.to_sym].join(', ')
-        cmd = generate!(Hash[iterate_replacer.to_sym, item])
-        run_command(cmd)
-      end
+    commands = generate!
+    if commands.is_a? Array
+      commands.each { |c| run_command(c) }
     else
-      run_command(generate!)
+      run_command(commands)
     end
   end
 
@@ -187,7 +190,7 @@ class Technique
   def self.current
     @@current
   end
-  
+
   def self.current=(value)
     @@current = value
   end
@@ -257,8 +260,12 @@ def show(thing)
       end
     end
   when 'actions'
+    return puts 'No Protocol Set'.yellow if !Protocol.current
+
     puts Protocol.current&.actions&.map(&:name)
   when 'options', 'vars'
+    return puts 'No Protocol Set'.yellow if !Protocol.current
+
     ap({
       current_protocol: Protocol.current&.name,
       current_action: Action.current&.name,
@@ -266,11 +273,19 @@ def show(thing)
         name: Technique.current&.name,
         command: Technique.current&.command,
         priority: Technique.current&.priority,
+        iteration: Technique.current&.iterate_over && "Iterate over #{Technique.current&.iterate_over} replacing #{Technique.current&.iterate_replacer}"
       },
       variables: INPUT_VARS,
+      default_variables: Technique.current&.defaults,
     })
   when 'protocol'
+    return puts 'No Protocol Set'.yellow if !Protocol.current
+
     puts Protocol.current&.name
+  when 'protocols'
+    Protocol.all.each do |_key, proto|
+      puts proto.name.blue
+    end
   when 'techniques'
     puts Action.current&.techniques&.map(&:name)
   else
@@ -284,6 +299,8 @@ def parse_input(input)
   case split[0]
   when 'show'
     show(split[1])
+  when 'vars'
+    show('vars')
   when 'set'
     set_var(split[1], split[2..-1])
   when 'run'
@@ -302,11 +319,15 @@ def parse_input(input)
     Protocol.reload!
     puts "Reloading data".blue
   else
-    puts 'Unknown command, type help?'.yellow
+    puts 'Unknown command'.yellow
   end
 end
 
 Protocol.load
+
+if ARGV[0]
+  set_var('protocol', [ARGV[0]])
+end
 while true
   parse_input(@prompt.ask("#{prompt_details}>"))
 end
